@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Flight Results</title>
+    <link rel="stylesheet" type="text/css" href="/static/style.css">
+</head>
+<body>
+    <h1>Flight Results</h1>
+    <table>
+        <tr>
+            <th>Time</th>
+            <th>Price</th>
+            <th>Flight Number</th>
+        </tr>
+        {% for flight in flights %}
+        <tr>
+            <td>{{ flight.time }}</td>
+            <td>{{ flight.price }}</td>
+            <td>{{ flight.flight_number }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
