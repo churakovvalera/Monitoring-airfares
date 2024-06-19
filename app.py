@@ -41,19 +41,26 @@ def get_flight_data(origin, destination, date):
     try:
         # Ждем появления элементов с информацией о рейсах
         WebDriverWait(driver, max_wait_time).until(
-            EC.visibility_of_element_located((By.CSS_SELECTOR, '.ticket-desktop'))
+            EC.visibility_of_element_located((By.CSS_SELECTOR, '.s__xKtg4fAwICoYLzMUUBbr'))
         )
 
-        flight_elements = driver.find_elements(By.CSS_SELECTOR, '.ticket-desktop')
+        flight_elements = driver.find_elements(By.CSS_SELECTOR, '.s__xKtg4fAwICoYLzMUUBbr')
 
         flights = []
         for flight in flight_elements:
             try:
-                price = flight.find_element(By.CSS_SELECTOR, '[data-test-id="price"]').text.strip()
-                departure_time = flight.find_element(By.CSS_SELECTOR, '[data-test-id="time-departure"]').text.strip()
-                departure_airport = flight.find_element(By.CSS_SELECTOR, '[data-test-id="airport-departure"]').text.strip()
-                arrival_time = flight.find_element(By.CSS_SELECTOR, '[data-test-id="time-arrival"]').text.strip()
-                arrival_airport = flight.find_element(By.CSS_SELECTOR, '[data-test-id="airport-arrival"]').text.strip()
+                price_element = flight.find_element(By.CSS_SELECTOR, '.s__LFCEUVt95j7o8KHhg4_u')
+                price = price_element.text.strip().replace('\u202f', '').replace('₽', '').replace(' ', '')
+
+                departure_time_element = flight.find_element(By.CSS_SELECTOR, '[data-test-id="text"]:nth-of-type(1)')
+                departure_airport_element = flight.find_element(By.CSS_SELECTOR, '[data-test-id="text"]:nth-of-type(2)')
+                arrival_time_element = flight.find_element(By.CSS_SELECTOR, '[data-test-id="text"]:nth-of-type(4)')
+                arrival_airport_element = flight.find_element(By.CSS_SELECTOR, '[data-test-id="text"]:nth-of-type(5)')
+
+                departure_time = departure_time_element.text.strip()
+                departure_airport = departure_airport_element.text.strip()
+                arrival_time = arrival_time_element.text.strip()
+                arrival_airport = arrival_airport_element.text.strip()
 
                 flights.append({
                     'price': price,
