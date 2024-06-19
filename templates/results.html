@@ -8,15 +8,19 @@
     <h1>Flight Results</h1>
     <table>
         <tr>
-            <th>Time</th>
+            <th>Departure Time</th>
             <th>Price</th>
-            <th>Flight Number</th>
+            <th>Departure Airport</th>
+            <th>Arrival Time</th>
+            <th>Arrival Airport</th>
         </tr>
         {% for flight in flights %}
         <tr>
-            <td>{{ flight.time }}</td>
+            <td>{{ flight.departure_time }}</td>
             <td>{{ flight.price }}</td>
-            <td>{{ flight.flight_number }}</td>
+            <td>{{ flight.departure_airport }}</td>
+            <td>{{ flight.arrival_time }}</td>
+            <td>{{ flight.arrival_airport }}</td>
         </tr>
         {% endfor %}
     </table>

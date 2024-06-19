@@ -1,5 +1,3 @@
-import csv
-import time
 from datetime import datetime
 import sqlite3
 import pandas as pd
@@ -10,6 +8,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
 
 app = Flask(__name__)
@@ -36,36 +35,34 @@ def get_flight_data(origin, destination, date):
 
     driver = webdriver.Chrome(service=service, options=chrome_options)
     driver.get(url)
-    time.sleep(10)  # Ожидание загрузки страницы (можно настроить через WebDriverWait)
 
-    max_wait_time = 180
-    poll_interval = 5
+    max_wait_time = 60  # Увеличиваем время ожидания до 1 минуты
 
     try:
         # Ждем появления элементов с информацией о рейсах
-        flight_elements = WebDriverWait(driver, max_wait_time).until(
-            EC.presence_of_all_elements_located((By.CLASS_NAME, 'ticket-desktop'))
+        WebDriverWait(driver, max_wait_time).until(
+            EC.visibility_of_element_located((By.CSS_SELECTOR, '.ticket-desktop'))
         )
+
+        flight_elements = driver.find_elements(By.CSS_SELECTOR, '.ticket-desktop')
 
         flights = []
         for flight in flight_elements:
             try:
                 price = flight.find_element(By.CSS_SELECTOR, '[data-test-id="price"]').text.strip()
-                texts = flight.find_elements(By.CSS_SELECTOR, '[data-test-id="text"]')
-                if len(texts) >= 4:
-                    departure_time = texts[0].text.strip()
-                    departure_airport = texts[1].text.strip()
-                    arrival_time = texts[2].text.strip()
-                    arrival_airport = texts[3].text.strip()
+                departure_time = flight.find_element(By.CSS_SELECTOR, '[data-test-id="time-departure"]').text.strip()
+                departure_airport = flight.find_element(By.CSS_SELECTOR, '[data-test-id="airport-departure"]').text.strip()
+                arrival_time = flight.find_element(By.CSS_SELECTOR, '[data-test-id="time-arrival"]').text.strip()
+                arrival_airport = flight.find_element(By.CSS_SELECTOR, '[data-test-id="airport-arrival"]').text.strip()
 
-                    flights.append({
-                        'price': price,
-                        'departure_time': departure_time,
-                        'departure_airport': departure_airport,
-                        'arrival_time': arrival_time,
-                        'arrival_airport': arrival_airport,
-                        'date': date
-                    })
+                flights.append({
+                    'price': price,
+                    'departure_time': departure_time,
+                    'departure_airport': departure_airport,
+                    'arrival_time': arrival_time,
+                    'arrival_airport': arrival_airport,
+                    'date': date
+                })
             except AttributeError as e:
                 print(f"Error parsing flight data: {e}")
                 continue
@@ -75,6 +72,10 @@ def get_flight_data(origin, destination, date):
             print(flight)
 
         return flights
+
+    except TimeoutException:
+        print("Timed out waiting for flight elements to appear")
+        return []
 
     finally:
         driver.quit()
@@ -101,6 +102,7 @@ def save_to_db(flights):
     conn = sqlite3.connect('flights.db')
     try:
         df = pd.DataFrame(flights)
+        df['price'] = df['price'].str.replace('₽', '').str.replace(' ', '').astype(float)
         df.to_sql('flights', conn, if_exists='append', index=False)
     except Exception as e:
         print(f"Error saving to DB: {e}")
