@@ -11,7 +11,6 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-
 def get_flight_data(origin, destination, date):
     try:
         # Преобразуем строку в объект datetime
@@ -24,7 +23,7 @@ def get_flight_data(origin, destination, date):
 
     # Формируем корректную ссылку
     url = f"https://www.aviasales.ru/search/{origin}{formatted_date}{destination}1"
-    print(f"URL: {url}")
+
 
     # Настраиваем веб-драйвер
     driver = webdriver.Chrome()  # Убедитесь, что у вас установлен ChromeDriver и он находится в PATH
@@ -42,20 +41,23 @@ def get_flight_data(origin, destination, date):
 
     # Извлекаем данные страницы
     soup = BeautifulSoup(driver.page_source, 'html.parser')
-    driver.save_screenshot('screenshot.png')
     driver.quit()
 
     flights = []
     for flight in soup.find_all('div', class_='ticket-desktop'):
         try:
-            time = flight.find('div', class_='segment-route__endpoint.segment-route__endpoint--departure').find('div', class_='segment-route__time').text.strip()
-            price = flight.find('div', class_='buy-button__price').text.strip()
-            flight_number = flight.find('div', class_='segment-route__number').text.strip()
+            price = flight.find('div', {'data-test-id': 'price'}).text.strip()
+            departure_time = flight.find_all('div', {'data-test-id': 'text'})[0].text.strip()
+            departure_airport = flight.find_all('div', {'data-test-id': 'text'})[1].text.strip()
+            arrival_time = flight.find_all('div', {'data-test-id': 'text'})[2].text.strip()
+            arrival_airport = flight.find_all('div', {'data-test-id': 'text'})[3].text.strip()
 
             flights.append({
-                'time': time,
                 'price': price,
-                'flight_number': flight_number,
+                'departure_time': departure_time,
+                'departure_airport': departure_airport,
+                'arrival_time': arrival_time,
+                'arrival_airport': arrival_airport,
                 'date': date
             })
         except AttributeError as e:
@@ -67,7 +69,6 @@ def get_flight_data(origin, destination, date):
         print(flight)
 
     return flights
-
 def create_table():
     conn = sqlite3.connect('flights.db')
     cursor = conn.cursor()
