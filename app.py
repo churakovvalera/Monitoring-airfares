@@ -8,6 +8,17 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from datetime import datetime
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.options import Options
+from bs4 import BeautifulSoup
+import csv
+import time
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -23,21 +34,37 @@ def get_flight_data(origin, destination, date):
 
     # Формируем корректную ссылку
     url = f"https://www.aviasales.ru/search/{origin}{formatted_date}{destination}1"
+    print(f"URL: {url}")
 
+    # Установка драйвера для Chrome
+    service = Service(ChromeDriverManager().install())
+    chrome_options = Options()
+    # chrome_options.add_extension(extension_path)  # Если нужна настройка расширений, добавьте их здесь
 
-    # Настраиваем веб-драйвер
-    driver = webdriver.Chrome()  # Убедитесь, что у вас установлен ChromeDriver и он находится в PATH
+    driver = webdriver.Chrome(service=service, options=chrome_options)
     driver.get(url)
+    time.sleep(10)  # Ожидание загрузки страницы
 
-    try:
-        # Увеличиваем время ожидания
-        WebDriverWait(driver, 30).until(
-            EC.presence_of_element_located((By.CLASS_NAME, 'ticket-desktop'))
-        )
-    except Exception as e:
-        print(f"Error waiting for page to load: {e}")
+    max_wait_time = 180
+    poll_interval = 5
+
+    flight_elements = []
+    start_time = time.time()
+    while time.time() - start_time < max_wait_time:
+        try:
+            flight_elements = WebDriverWait(driver, poll_interval).until(
+                EC.presence_of_all_elements_located((By.CLASS_NAME, 'ticket-desktop'))
+            )
+            if flight_elements:
+                break
+        except Exception as e:
+            print(f"Waiting for flight elements: {e}")
+            time.sleep(poll_interval)  # Ожидание перед повторной попыткой
+
+    if not flight_elements:
+        print(f"Elements not found within {max_wait_time} seconds.")
         driver.quit()
-        return []
+        return None
 
     # Извлекаем данные страницы
     soup = BeautifulSoup(driver.page_source, 'html.parser')
@@ -68,7 +95,19 @@ def get_flight_data(origin, destination, date):
     for flight in flights:
         print(flight)
 
-    return flights
+    # Создание CSV-файла с информацией о рейсах
+    csv_filename = 'flight_info.csv'
+    with open(csv_filename, 'w', newline='', encoding='utf-8') as csvfile:
+        fieldnames = ['price', 'departure_time', 'departure_airport', 'arrival_time', 'arrival_airport', 'date']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+        writer.writeheader()
+        for info in flights:
+            writer.writerow(info)
+
+    print(f'CSV файл {csv_filename} успешно создан.')
+
+    return csv_filename
 def create_table():
     conn = sqlite3.connect('flights.db')
     cursor = conn.cursor()
