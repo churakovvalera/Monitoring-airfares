@@ -3,7 +3,11 @@ from bs4 import BeautifulSoup
 
 
 def parse_aviasales(date, origin, destination):
-    url = f'https://www.aviasales.ru/search/{origin}{destination}{date}'
+    # Форматируем дату в нужный для сайта Aviasales формат "DDMM"
+    formatted_date = date[5:7]+ date[8:]  # получаем "DDMM"
+
+    url = f'https://www.aviasales.ru/search/{origin}{formatted_date}{destination}1'
+    print(url)
     response = requests.get(url)
 
     # Проверяем успешность запроса
@@ -11,7 +15,7 @@ def parse_aviasales(date, origin, destination):
         print(f"Failed to retrieve data from Aviasales. Status code: {response.status_code}")
         return
 
-    soup = BeautifulSoup(response.content, 'lxml')
+    soup = BeautifulSoup(response.content, 'html.parser')  # используем 'html.parser'
     tickets = soup.find_all('div', class_='ticket-desktop')
 
     if not tickets:
