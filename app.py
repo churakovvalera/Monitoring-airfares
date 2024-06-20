@@ -1,150 +1,62 @@
-from datetime import datetime
-import sqlite3
-import pandas as pd
-from flask import Flask, request, render_template
 from selenium import webdriver
+from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
 
-app = Flask(__name__)
+# Настройка ChromeOptions
+chrome_options = Options()
+chrome_options.add_argument("--headless")  # Запуск в фоновом режиме
 
-def get_flight_data(origin, destination, date):
-    try:
-        # Преобразуем строку в объект datetime
-        date_obj = datetime.strptime(date, "%Y-%m-%d")
-        # Преобразуем дату в нужный формат для Aviasales (ddmm)
-        formatted_date = date_obj.strftime("%d%m")
-    except ValueError as e:
-        print(f"Error parsing date: {e}")
-        return []
+# Установка ChromeDriver
+service = Service(ChromeDriverManager().install())
+driver = webdriver.Chrome(service=service, options=chrome_options)
 
-    # Формируем корректную ссылку
-    url = f"https://www.aviasales.ru/search/{origin}{formatted_date}{destination}1"
-    print(f"URL: {url}")
+# URL сайта
+url = "https://avia.tema.ru/flights/TOF1610AER1"
 
-    # Установка драйвера для Chrome
-    service = Service(ChromeDriverManager().install())
-    chrome_options = Options()
-    # Для скрытия окна браузера используйте:
-    # chrome_options.add_argument("--headless")
+# Загрузка страницы
+driver.get(url)
 
-    driver = webdriver.Chrome(service=service, options=chrome_options)
-    driver.get(url)
+# Извлечение данных
+flight_details = driver.find_element(By.CLASS_NAME, 'flight-details')
 
-    max_wait_time = 60  # Увеличиваем время ожидания до 1 минуты
+# Город вылета
+departure_city_elem = flight_details.find_element(By.CLASS_NAME, 'flight-brief-city')
+departure_city = departure_city_elem.text.strip()
 
-    try:
-        # Ждем появления элементов с информацией о рейсах
-        WebDriverWait(driver, max_wait_time).until(
-            EC.visibility_of_element_located((By.CSS_SELECTOR, '.s__xKtg4fAwICoYLzMUUBbr'))
-        )
+# Время вылета
+departure_time_elem = flight_details.find_element(By.CLASS_NAME, 'flight-brief-time')
+departure_time = departure_time_elem.text.strip()
 
-        flight_elements = driver.find_elements(By.CSS_SELECTOR, '.s__xKtg4fAwICoYLzMUUBbr')
+# Город пересадки
+layover_city_elem = flight_details.find_element(By.CLASS_NAME, 'flight-brief-layover__iata')
+layover_city = layover_city_elem.text.strip()
 
-        flights = []
-        for flight in flight_elements:
-            try:
-                price_element = flight.find_element(By.CSS_SELECTOR, '.s__LFCEUVt95j7o8KHhg4_u')
-                price = price_element.text.strip().replace('\u202f', '').replace('₽', '').replace(' ', '')
+# Время пересадки
+layover_time_elem = flight_details.find_element(By.CLASS_NAME, 'flight-details-layover__time')
+layover_time = layover_time_elem.text.strip()
 
-                departure_time_element = flight.find_element(By.CSS_SELECTOR, '[data-test-id="text"]:nth-of-type(1)')
-                departure_airport_element = flight.find_element(By.CSS_SELECTOR, '[data-test-id="text"]:nth-of-type(2)')
-                arrival_time_element = flight.find_element(By.CSS_SELECTOR, '[data-test-id="text"]:nth-of-type(4)')
-                arrival_airport_element = flight.find_element(By.CSS_SELECTOR, '[data-test-id="text"]:nth-of-type(5)')
+# Город прибытия
+arrival_city_elems = flight_details.find_elements(By.CLASS_NAME, 'flight-brief-city')
+arrival_city = arrival_city_elems[-1].text.strip()
 
-                departure_time = departure_time_element.text.strip()
-                departure_airport = departure_airport_element.text.strip()
-                arrival_time = arrival_time_element.text.strip()
-                arrival_airport = arrival_airport_element.text.strip()
+# Время прибытия
+arrival_time_elems = flight_details.find_elements(By.CLASS_NAME, 'flight-brief-time')
+arrival_time = arrival_time_elems[-1].text.strip()
 
-                flights.append({
-                    'price': price,
-                    'departure_time': departure_time,
-                    'departure_airport': departure_airport,
-                    'arrival_time': arrival_time,
-                    'arrival_airport': arrival_airport,
-                    'date': date
-                })
-            except AttributeError as e:
-                print(f"Error parsing flight data: {e}")
-                continue
+# Цена
+price_elem = driver.find_element(By.CLASS_NAME, 'currency_font.currency_font--rub')
+price = price_elem.text.strip()
 
-        print(f"Found {len(flights)} flights")
-        for flight in flights:
-            print(flight)
+# Вывод данных в табличном виде
+print(f"1) Город вылета: {departure_city}")
+print(f"2) Время вылета: {departure_time}")
+print(f"3) Город пересадки: {layover_city}")
+print(f"4) Время пересадки: {layover_time}")
+print(f"5) Город прибытия: {arrival_city}")
+print(f"6) Время прибытия: {arrival_time}")
+print(f"7) Цена: {price}")
 
-        return flights
-
-    except TimeoutException:
-        print("Timed out waiting for flight elements to appear")
-        return []
-
-    finally:
-        driver.quit()
-
-def create_table():
-    conn = sqlite3.connect('flights.db')
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS flights (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            price TEXT,
-            departure_time TEXT,
-            departure_airport TEXT,
-            arrival_time TEXT,
-            arrival_airport TEXT,
-            date TEXT
-        )
-    ''')
-    conn.commit()
-    conn.close()
-
-def save_to_db(flights):
-    create_table()  # Создаем таблицу перед вставкой данных
-    conn = sqlite3.connect('flights.db')
-    try:
-        df = pd.DataFrame(flights)
-        df['price'] = df['price'].str.replace('₽', '').str.replace(' ', '').astype(float)
-        df.to_sql('flights', conn, if_exists='append', index=False)
-    except Exception as e:
-        print(f"Error saving to DB: {e}")
-    finally:
-        conn.close()
-
-def analyze_data():
-    conn = sqlite3.connect('flights.db')
-    try:
-        df = pd.read_sql('SELECT * FROM flights', conn)
-        df['price'] = df['price'].str.replace('₽', '').str.replace(' ', '').astype(float)
-        avg_prices = df.groupby('date')['price'].mean()
-        return avg_prices
-    except Exception as e:
-        print(f"Error analyzing data: {e}")
-        return None
-    finally:
-        conn.close()
-
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-@app.route('/search', methods=['POST'])
-def search():
-    origin = request.form['origin']
-    destination = request.form['destination']
-    date = request.form['date']
-
-    flights = get_flight_data(origin, destination, date)
-    if flights:
-        save_to_db(flights)
-        return render_template('results.html', flights=flights)
-    else:
-        return "No flights found."
-
-if __name__ == '__main__':
-    app.run(debug=True)
+# Закрытие драйвера
+driver.quit()
